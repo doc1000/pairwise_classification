@@ -41,7 +41,7 @@ model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
 tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
 
-# In[336]:
+# In[672]:
 
 
 def calc_category_features(image_category_prompts,text_category_prompts,tokenizer=tokenizer, model=model):
@@ -80,6 +80,19 @@ def clear_memory():
         gc.collect()
 
     # your code here
+    
+def ordered_sampling(arr_a,bins = 1000):
+    if bins>=len(arr_a):
+        return arr_a
+    binsize = int(np.round(n)/bins)
+    padding = min(binsize-n%binsize,binsize-1)
+    sort_a = np.sort(np.pad(arr_a,[(0,padding),(0,0)],mode='constant'),axis=0)
+    binsize = int((len(sort_a)/bins))
+    bins = int(len(sort_a)/binsize)
+    sample_ix = (np.random.choice(np.arange(binsize),bins)+np.arange(0,n,binsize))
+    sample = sort_a[sample_ix]
+    print(sample.shape)
+    return sample
 
 
 def cross_dev_ratio(
@@ -99,12 +112,13 @@ feature_array = clip_image_features
         b_features = feature_array[class_assignment != a_targ]
         
     #(a_features-b_features[:,np.newaxis]).shape
-    
-    small_a =a_features[np.random.choice(np.arange(a_features.shape[0]),min(num_samples,a_features.shape[0])),:]
-    small_b =b_features[np.random.choice(np.arange(b_features.shape[0]),min(num_samples,b_features.shape[0])),:]
-    
-    #small_a = a_features[:2000,:]
-    #small_b = b_features[:2000,:]
+
+    #simple sampling
+    #small_a =a_features[np.random.choice(np.arange(a_features.shape[0]),min(num_samples,a_features.shape[0])),:]
+    #small_b =b_features[np.random.choice(np.arange(b_features.shape[0]),min(num_samples,b_features.shape[0])),:]
+
+    small_a = ordered_sampling(a_features,bins = num_samples)
+    small_b = ordered_sampling(b_features,bins = num_samples)
     #(a_features[:10,:5]-a_features[np.newaxis,:11,:5]).shape
     #broadcast to get cross dev values... shape should be number of dimensions
     #cross_var = cross_variance(small_a, small_b, c_type='var')
@@ -115,6 +129,44 @@ feature_array = clip_image_features
         _ = plt.hist(dev_comp);
         print(sum(dev_comp>1.25))
     return dev_comp
+
+
+# In[697]:
+
+
+arr_a = clip_image_features[:1000]
+arr_b = clip_image_features[1000:2000]
+n = len(arr_a)
+m = len(arr_b)
+denom = (n*m*2)
+#difference = (arr_a[:] - arr_b[:,None])
+
+#cross_var = np.einsum('ij...,ij...->...', difference, difference)
+def cross_var2(arr_a,arr_b):
+    a_mean = arr_a.mean(axis=0)
+    b_mean = arr_b.mean(axis=0)
+    a_sqr_mean = np.power(arr_a,2).mean(axis=0)
+    b_sqr_mean = np.power(arr_b,2).mean(axis=0)
+    cv = (a_sqr_mean+b_sqr_mean)/2 - a_mean*b_mean
+    return cv
+
+
+#%timeit cross_variance(arr_a,arr_b,'var')
+with clear_memory():
+    get_ipython().run_line_magic('timeit', 'cross_var2(arr_a,arr_b)')
+#np.testing.assert_almost_equal(cv,crossvar,decimal=5)
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
 
 # In[313]:
@@ -325,7 +377,7 @@ new_index = (crd_image_class==crd_text_class)&(crd_image_class==0)
 clip_image_features[new_index,:].shape
 
 
-# In[312]:
+# In[698]:
 
 
 import gc
@@ -426,7 +478,7 @@ new_crd_image_class, new_crd_text_class, new_crd_image_cosim, new_crd_text_cosim
 f1_score(new_text_class,new_image_class,average='weighted')
 
 
-# In[359]:
+# In[677]:
 
 
 for ix in np.random.choice(np.arange(len(product_embeddings[new_index])),3):
@@ -640,6 +692,12 @@ print(f1_score(pat_classes['txt'], new_text_class,average='weighted'))
 z = plt.hist(new_text_class)
 z = plt.hist(pat_classes['txt'])
 
+
+
+# In[365]:
+
+
+category_list
 
 
 # In[ ]:
